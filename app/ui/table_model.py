@@ -1,4 +1,5 @@
 from PyQt6.QtCore import Qt, QAbstractTableModel
+
 from app.utils.database.controller import DatabaseController
 
 

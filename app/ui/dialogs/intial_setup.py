@@ -1,10 +1,10 @@
+import os
+import sqlite3
+
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QLineEdit, QPushButton, QComboBox, QTableWidget,
                              QTableWidgetItem, QSpinBox, QMessageBox, QHeaderView,
                              QFileDialog)
-from PyQt6.QtCore import Qt
-import os
-import sqlite3
 
 
 class InitialSetupDialog(QDialog):

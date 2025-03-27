@@ -1,5 +1,7 @@
 from PyQt6.QtCore import QObject, QTimer
+
 from app.utils.database.controller import DatabaseController
+
 
 class AutoSave(QObject):
     def __init__(self, db_controller: DatabaseController, interval: int = 500):

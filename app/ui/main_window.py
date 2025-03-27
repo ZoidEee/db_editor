@@ -1,19 +1,20 @@
+import logging
+
+from PyQt6.QtCore import Qt, QSettings
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
                              QTableWidget, QLabel, QPushButton, QComboBox,
-                             QLineEdit, QHeaderView, QStatusBar, QSpinBox,
-                             QTableWidgetItem, QMessageBox, QDialog)
-from PyQt6.QtGui import QIcon, QAction
-from PyQt6.QtCore import Qt, QTimer, QSettings
+                             QLineEdit, QHeaderView, QSpinBox,
+                             QMessageBox, QDialog, QTableView)
 
 from app.ui.dialogs.intial_setup import InitialSetupDialog
 from app.ui.menu_bar import MenuBar
 from app.ui.table_model import TableModel
 from app.utils.auto_save import AutoSave
 from app.utils.database.controller import DatabaseController
-import logging
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
 
 class DatabaseEditorWindow(QMainWindow):
     def __init__(self):
@@ -38,7 +39,6 @@ class DatabaseEditorWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-
 
         # Database controls
         db_controls = QHBoxLayout()
@@ -82,7 +82,7 @@ class DatabaseEditorWindow(QMainWindow):
         main_layout.addLayout(button_layout)
 
         # Table setup
-        self.table = QTableWidget()
+        self.table = QTableView()
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked)
@@ -116,18 +116,16 @@ class DatabaseEditorWindow(QMainWindow):
         self.new_db_btn.clicked.connect(self.show_setup_dialog)
         self.open_db_btn.clicked.connect(self.open_database)
         self.table_combo.currentTextChanged.connect(self.load_table)
-        self.table.cellChanged.connect(self.handle_cell_change)
+
 
     def setup_auto_save(self):
-            self.auto_save = AutoSave(self.db_controller)
+        self.auto_save = AutoSave(self.db_controller)
 
     def start_auto_save_timer(self):
         self.auto_save.start()
 
     def perform_auto_save(self):
         self.auto_save.perform_auto_save()
-
-
 
     def check_first_run(self):
         settings = QSettings("YourCompany", "DatabaseEditor")
@@ -181,8 +179,3 @@ class DatabaseEditorWindow(QMainWindow):
             # Log and display an error message if something goes wrong
             logger.error(f"Failed to load table {table_name}: {str(e)}")
             QMessageBox.critical(self, "Load Error", f"Failed to load table {table_name}: {str(e)}")
-
-    def handle_cell_change(self, top_left, bottom_right, roles):
-        if Qt.ItemDataRole.EditRole in roles:
-            self.auto_save.start()
-
