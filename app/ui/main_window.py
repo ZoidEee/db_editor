@@ -6,6 +6,9 @@ from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import Qt, QTimer, QSettings
 
 from app.ui.dialogs.intial_setup import InitialSetupDialog
+from app.ui.menu_bar import MenuBar
+from app.ui.table_model import TableModel
+from app.utils.auto_save import AutoSave
 from app.utils.database.controller import DatabaseController
 import logging
 
@@ -26,6 +29,10 @@ class DatabaseEditorWindow(QMainWindow):
         self.setup_menu_bar()
         self.setup_main_window()
         self.setup_auto_save()
+
+    def setup_menu_bar(self):
+        self.menubar = MenuBar(self)
+        self.setMenuBar(self.menubar)
 
     def setup_main_window(self):
         central_widget = QWidget()
@@ -111,86 +118,16 @@ class DatabaseEditorWindow(QMainWindow):
         self.table_combo.currentTextChanged.connect(self.load_table)
         self.table.cellChanged.connect(self.handle_cell_change)
 
-    def setup_menu_bar(self):
-        menubar = self.menuBar()
-
-        # File menu
-        file_menu = menubar.addMenu("&File")
-
-        self.new_db_action = QAction("&New Database", self)
-        self.open_db_action = QAction("&Open Database", self)
-        self.save_action = QAction("&Save", self)
-        self.save_as_action = QAction("Save &As", self)
-        self.export_action = QAction("&Export", self)
-        self.exit_action = QAction("E&xit", self)
-
-        file_menu.addAction(self.new_db_action)
-        file_menu.addAction(self.open_db_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.save_action)
-        file_menu.addAction(self.save_as_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.export_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.exit_action)
-
-        # Edit menu
-        edit_menu = menubar.addMenu("&Edit")
-
-        self.add_row_action = QAction("&Add Row", self)
-        self.delete_row_action = QAction("&Delete Row", self)
-        self.add_column_action = QAction("Add &Column", self)
-        self.edit_column_action = QAction("&Edit Column", self)
-        self.find_action = QAction("&Find", self)
-        self.replace_action = QAction("&Replace", self)
-
-        edit_menu.addAction(self.add_row_action)
-        edit_menu.addAction(self.delete_row_action)
-        edit_menu.addSeparator()
-        edit_menu.addAction(self.add_column_action)
-        edit_menu.addAction(self.edit_column_action)
-        edit_menu.addSeparator()
-        edit_menu.addAction(self.find_action)
-        edit_menu.addAction(self.replace_action)
-
-        # View menu
-        view_menu = menubar.addMenu("&View")
-
-        self.refresh_action = QAction("&Refresh", self)
-        self.zoom_in_action = QAction("Zoom &In", self)
-        self.zoom_out_action = QAction("Zoom &Out", self)
-        self.reset_zoom_action = QAction("&Reset Zoom", self)
-
-        view_menu.addAction(self.refresh_action)
-        view_menu.addSeparator()
-        view_menu.addAction(self.zoom_in_action)
-        view_menu.addAction(self.zoom_out_action)
-        view_menu.addAction(self.reset_zoom_action)
-
-        # Tools menu
-        tools_menu = menubar.addMenu("&Tools")
-
-        self.query_editor_action = QAction("&SQL Query Editor", self)
-        self.settings_action = QAction("&Preferences", self)
-
-        tools_menu.addAction(self.query_editor_action)
-        tools_menu.addSeparator()
-        tools_menu.addAction(self.settings_action)
-
-        # Help menu
-        help_menu = menubar.addMenu("&Help")
-
-        self.docs_action = QAction("&Documentation", self)
-        self.about_action = QAction("&About", self)
-
-        help_menu.addAction(self.docs_action)
-        help_menu.addSeparator()
-        help_menu.addAction(self.about_action)
-
     def setup_auto_save(self):
-        self.auto_save_timer = QTimer()
-        self.auto_save_timer.setInterval(500)
-        self.auto_save_timer.timeout.connect(self.perform_auto_save)
+            self.auto_save = AutoSave(self.db_controller)
+
+    def start_auto_save_timer(self):
+        self.auto_save.start()
+
+    def perform_auto_save(self):
+        self.auto_save.perform_auto_save()
+
+
 
     def check_first_run(self):
         settings = QSettings("YourCompany", "DatabaseEditor")
@@ -234,20 +171,8 @@ class DatabaseEditorWindow(QMainWindow):
                 return
 
             self.current_table = table_name
-
-            # Fetch table data and column names from the database
-            columns, data = self.db_controller.get_table_data(table_name)
-
-            # Set up the table widget with the appropriate number of columns and headers
-            self.table.setColumnCount(len(columns))
-            self.table.setHorizontalHeaderLabels(columns)
-            self.table.setRowCount(len(data))
-
-            # Populate the table with the data retrieved from the database
-            for row, record in enumerate(data):
-                for col, value in enumerate(record.values()):
-                    item = QTableWidgetItem(str(value))
-                    self.table.setItem(row, col, item)
+            self.table_model = TableModel(self.db_controller, table_name)
+            self.table.setModel(self.table_model)
 
             # Display a success message in the status bar
             self.statusBar().showMessage(f"Loaded table: {table_name}", 3000)
@@ -257,28 +182,7 @@ class DatabaseEditorWindow(QMainWindow):
             logger.error(f"Failed to load table {table_name}: {str(e)}")
             QMessageBox.critical(self, "Load Error", f"Failed to load table {table_name}: {str(e)}")
 
-    def handle_cell_change(self, row, column):
-        if self.current_table:
-            new_value = self.table.item(row, column).text()
-            column_name = self.table.horizontalHeaderItem(column).text()
-            primary_key_col = self.table.horizontalHeaderItem(0).text()
-            primary_key_value = self.table.item(row, 0).text()
-            try:
-                self.db_controller.update_record(self.current_table, primary_key_col, primary_key_value, column_name, new_value)
-                self.start_auto_save_timer()
-            except Exception as e:
-                logger.error(f"Failed to update record: {str(e)}")
-                QMessageBox.critical(self, "Update Error", f"Failed to update record: {str(e)}")
+    def handle_cell_change(self, top_left, bottom_right, roles):
+        if Qt.ItemDataRole.EditRole in roles:
+            self.auto_save.start()
 
-    def start_auto_save_timer(self):
-        self.auto_save_timer.start()
-
-    def perform_auto_save(self):
-        try:
-            self.db_controller.commit()
-            self.statusBar().showMessage("Changes saved", 2000)
-        except Exception as e:
-            logger.error(f"Auto-save failed: {str(e)}")
-            QMessageBox.critical(self, "Save Error", f"Auto-save failed: {str(e)}")
-        finally:
-            self.auto_save_timer.stop()
