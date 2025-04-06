@@ -1,12 +1,13 @@
 import logging
+import os.path
 
-from PyQt6.QtCore import Qt, QSettings
+from PyQt6.QtCore import QSettings, Qt
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
-                             QTableWidget, QLabel, QPushButton, QComboBox,
-                             QLineEdit, QHeaderView, QSpinBox,
-                             QMessageBox, QDialog, QTableView)
+                             QTableWidget, QLabel, QPushButton, QHeaderView, QSpinBox,
+                             QMessageBox, QDialog, QTableView, QLineEdit, QSizePolicy)
 
-from app.ui.dialogs.intial_setup import InitialSetupDialog
+from app.ui.dialogs.intial_setup import NewDatabaseDialog
+from app.ui.toolbar import DatabaseToolBar
 from app.ui.menu_bar import MenuBar
 from app.ui.table_model import TableModel
 from app.utils.auto_save import AutoSave
@@ -20,7 +21,7 @@ class DatabaseEditorWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db_controller = None
-        self.current_table = None
+        #self.current_table = None
         self.setup_ui()
         self.check_first_run()
 
@@ -39,57 +40,58 @@ class DatabaseEditorWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(15)
 
-        # Database controls
-        db_controls = QHBoxLayout()
-        self.db_label = QLabel("Current Database: Not Connected")
-        self.new_db_btn = QPushButton("New Database")
-        self.open_db_btn = QPushButton("Open Database")
-        db_controls.addWidget(self.db_label)
-        db_controls.addStretch(1)
-        db_controls.addWidget(self.new_db_btn)
-        db_controls.addWidget(self.open_db_btn)
-        main_layout.addLayout(db_controls)
+        # Connection Status
+        status_widget = QWidget()
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(QLabel("Database:"))
+        self.db_connected_label = QLabel("Not Connected")
+        self.db_connected_label.setStyleSheet("font-weight: bold; color: red;")
+        status_layout.addWidget(self.db_connected_label)
+        status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_widget.setLayout(status_layout)
+        status_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-        # Table selection
-        table_controls = QHBoxLayout()
-        self.table_combo = QComboBox()
-        self.new_table_btn = QPushButton("New Table")
-        table_controls.addWidget(QLabel("Select Table:"))
-        table_controls.addWidget(self.table_combo)
-        table_controls.addWidget(self.new_table_btn)
-        main_layout.addLayout(table_controls)
-
-        # Search bar
+        # Search Layout
+        search_widget = QWidget()
         search_layout = QHBoxLayout()
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search...")
-        self.search_btn = QPushButton("Search")
-        search_layout.addWidget(self.search_input)
-        search_layout.addWidget(self.search_btn)
-        main_layout.addLayout(search_layout)
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Search...")
+        search_layout.addWidget(self.search_box)
+        search_widget.setLayout(search_layout)
+        search_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
-        # CRUD Buttons
-        button_layout = QHBoxLayout()
-        self.add_button = QPushButton("Add")
-        self.delete_button = QPushButton("Delete")
-        self.add_column_button = QPushButton("Add Column")
-        self.export_button = QPushButton("Export")
-        button_layout.addWidget(self.add_button)
-        button_layout.addWidget(self.delete_button)
-        button_layout.addWidget(self.add_column_button)
-        button_layout.addWidget(self.export_button)
-        main_layout.addLayout(button_layout)
+        # Combined Layout
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(status_widget)
+        top_layout.addWidget(search_widget)
 
-        # Table setup
+        # Add stretch factors for equal space
+        top_layout.setStretch(0, 1)  # Status section
+        top_layout.setStretch(1, 1)  # Search section
+
+        main_layout.addLayout(top_layout)
+
+        # Add Toolbar
+        self.toolbar = DatabaseToolBar(self)
+        self.addToolBar(self.toolbar)
+
+        # === Sort/Export Buttons ===
+        util_layout = QHBoxLayout()
+        util_layout.setSpacing(5)
+
+        # === Main Table View ===
         self.table = QTableView()
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.DoubleClicked)
         main_layout.addWidget(self.table)
 
-        # Pagination controls
+        # === Pagination ===
         pagination_layout = QHBoxLayout()
+        pagination_layout.setSpacing(10)
+
         self.prev_page_btn = QPushButton("Previous")
         self.next_page_btn = QPushButton("Next")
         self.page_number = QSpinBox()
@@ -98,6 +100,10 @@ class DatabaseEditorWindow(QMainWindow):
         self.page_size.setMinimum(10)
         self.page_size.setMaximum(1000)
         self.page_size.setValue(100)
+
+        self.prev_page_btn.setFixedWidth(80)
+        self.next_page_btn.setFixedWidth(80)
+
         pagination_layout.addWidget(QLabel("Page:"))
         pagination_layout.addWidget(self.page_number)
         pagination_layout.addWidget(QLabel("of"))
@@ -112,10 +118,17 @@ class DatabaseEditorWindow(QMainWindow):
 
         self.statusBar().showMessage("Ready")
 
-        # Connect signals
-        self.new_db_btn.clicked.connect(self.show_setup_dialog)
-        self.open_db_btn.clicked.connect(self.open_database)
+        # === Connect Signals ===
+        '''self.new_open_db_btn.clicked.connect(self.show_setup_dialog)
+        self.close_db_btn.clicked.connect(self.close_database)
+        self.refresh_btn.clicked.connect(self.load_table)
+        self.repair_db_btn.clicked.connect(self.optimize_database)
         self.table_combo.currentTextChanged.connect(self.load_table)
+        self.new_table_btn.clicked.connect(self.create_new_table)
+        self.rename_table_btn.clicked.connect(self.rename_table)
+        self.delete_table_btn.clicked.connect(self.delete_table)
+        self.clone_table_btn.clicked.connect(self.clone_table)
+        '''
 
 
     def setup_auto_save(self):
@@ -133,7 +146,7 @@ class DatabaseEditorWindow(QMainWindow):
             self.show_setup_dialog()
 
     def show_setup_dialog(self):
-        dlg = InitialSetupDialog()
+        dlg = NewDatabaseDialog()
         if dlg.exec() == QDialog.DialogCode.Accepted:
             config = dlg.get_config()
             logger.debug(f"Database configuration: {config}")
@@ -141,15 +154,11 @@ class DatabaseEditorWindow(QMainWindow):
                 self.db_controller = DatabaseController(config)
                 if config['is_new'] and config['table_name']:
                     self.db_controller.create_table(config['table_name'], config['columns'], config['initial_rows'])
-                self.db_label.setText(f"Current Database: {config['path']}")
+                self.db_connected_label.setText(f"{os.path.basename(config['path'])}")
                 self.load_tables()
             except Exception as e:
                 logger.error(f"Setup Error: {str(e)}")
                 QMessageBox.critical(self, "Setup Error", f"Failed to setup database: {str(e)}")
-
-    def open_database(self):
-        # Implement opening an existing database
-        pass
 
     def load_tables(self):
         try:
@@ -168,7 +177,7 @@ class DatabaseEditorWindow(QMainWindow):
             if not table_name:
                 return
 
-            self.current_table = table_name
+            #self.current_table = table_name
             self.table_model = TableModel(self.db_controller, table_name)
             self.table.setModel(self.table_model)
 

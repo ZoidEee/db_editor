@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QFileDialog)
 
 
-class InitialSetupDialog(QDialog):
+class NewDatabaseDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SQLite Database Setup")
