@@ -4,7 +4,7 @@ import os.path
 from PyQt6.QtCore import QSettings, Qt
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
                              QTableWidget, QLabel, QPushButton, QHeaderView, QSpinBox,
-                             QMessageBox, QDialog, QTableView, QLineEdit, QSizePolicy)
+                             QMessageBox, QDialog, QTableView, QLineEdit, QSizePolicy, QComboBox)
 
 from app.ui.dialogs.intial_setup import NewDatabaseDialog
 from app.ui.toolbar import DatabaseToolBar
@@ -21,7 +21,7 @@ class DatabaseEditorWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.db_controller = None
-        #self.current_table = None
+        # self.current_table = None
         self.setup_ui()
         self.check_first_run()
 
@@ -44,14 +44,27 @@ class DatabaseEditorWindow(QMainWindow):
 
         # Connection Status
         status_widget = QWidget()
+
+        database_connection_layout = QHBoxLayout()
+
         status_layout = QHBoxLayout()
         status_layout.addWidget(QLabel("Database:"))
+
         self.db_connected_label = QLabel("Not Connected")
-        self.db_connected_label.setStyleSheet("font-weight: bold; color: red;")
+        self.db_connected_label.setStyleSheet("font-weight: bold; color: red; font-size: 16px;")
+
         status_layout.addWidget(self.db_connected_label)
-        status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        status_widget.setLayout(status_layout)
+        database_connection_layout.addLayout(status_layout)
+
+        # status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        status_widget.setLayout(database_connection_layout)
         status_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
+        self.table_combo = QComboBox()
+        self.table_combo.setMinimumWidth(75)
+        self.table_combo.setMaximumWidth(150)
+        database_connection_layout.addWidget(self.table_combo)
 
         # Search Layout
         search_widget = QWidget()
@@ -130,7 +143,6 @@ class DatabaseEditorWindow(QMainWindow):
         self.clone_table_btn.clicked.connect(self.clone_table)
         '''
 
-
     def setup_auto_save(self):
         self.auto_save = AutoSave(self.db_controller)
 
@@ -164,6 +176,7 @@ class DatabaseEditorWindow(QMainWindow):
         try:
             if self.db_controller:
                 tables = self.db_controller.get_tables()
+
                 self.table_combo.clear()
                 self.table_combo.addItems(tables)
                 if tables:
@@ -177,7 +190,7 @@ class DatabaseEditorWindow(QMainWindow):
             if not table_name:
                 return
 
-            #self.current_table = table_name
+            # self.current_table = table_name
             self.table_model = TableModel(self.db_controller, table_name)
             self.table.setModel(self.table_model)
 
