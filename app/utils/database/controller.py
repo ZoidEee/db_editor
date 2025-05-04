@@ -84,6 +84,119 @@ class DatabaseController:
             logger.error(f"Failed to update record: {str(e)}")
             raise
 
+    def add_column(self, table_name, column_name, column_type):
+        try:
+            with self.conn:
+                self.conn.execute(
+                    f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {column_type}'
+                )
+            logger.info(f"Added column {column_name} to {table_name}")
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Add column failed: {str(e)}")
+            return False
+
+    def optimize(self):
+        try:
+            with self.conn:
+                self.conn.execute('VACUUM')
+                self.conn.execute('PRAGMA optimize')
+            logger.info("Database optimized")
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Optimization failed: {str(e)}")
+            return False
+
+    def drop_table(self, table_name):
+        try:
+            with self.conn:
+                self.conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+            logger.info(f"Dropped table {table_name}")
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Table deletion failed: {str(e)}")
+            return False
+
+    def rename_table(self, old_name, new_name):
+        try:
+            with self.conn:
+                self.conn.execute(f'ALTER TABLE "{old_name}" RENAME TO "{new_name}"')
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Rename table failed: {str(e)}")
+            return False
+
+    def remove_column(self, table_name, column_name):
+        try:
+            with self.conn:
+                # SQLite doesn't support DROP COLUMN directly
+                cols = [col for col in self.get_schema(table_name) if col['name'] != column_name]
+                cols_sql = ', '.join([f'"{col["name"]}" {col["type"]}' for col in cols])
+
+                self.conn.execute(f'ALTER TABLE "{table_name}" RENAME TO temp_table')
+                self.conn.execute(f'CREATE TABLE "{table_name}" ({cols_sql})')
+                self.conn.execute(
+                    f'INSERT INTO "{table_name}" SELECT {",".join([col["name"] for col in cols])} FROM temp_table')
+                self.conn.execute('DROP TABLE temp_table')
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Remove column failed: {str(e)}")
+            return False
+
+    def rename_column(self, table_name, old_name, new_name):
+        try:
+            with self.conn:
+                # SQLite doesn't support RENAME COLUMN directly
+                schema = self.get_schema(table_name)
+                cols_sql = ', '.join([
+                    f'"{col["name"] if col["name"] != old_name else new_name}" {col["type"]}'
+                    for col in schema
+                ])
+
+                self.conn.execute(f'ALTER TABLE "{table_name}" RENAME TO temp_table')
+                self.conn.execute(f'CREATE TABLE "{table_name}" ({cols_sql})')
+                self.conn.execute(f'INSERT INTO "{table_name}" SELECT * FROM temp_table')
+                self.conn.execute('DROP TABLE temp_table')
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Rename column failed: {str(e)}")
+            return False
+
+    def get_schema(self, table_name):
+        try:
+            cursor = self.conn.execute(f'PRAGMA table_info("{table_name}")')
+            return [dict(row) for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logger.error(f"Get schema failed: {str(e)}")
+            return []
+
+    def batch_insert(self, table_name, data):
+        try:
+            with self.conn:
+                columns = self.get_schema(table_name)
+                col_names = [col['name'] for col in columns if col['name'].lower() != 'id']
+                placeholders = ', '.join(['?' for _ in col_names])
+                insert_sql = f'INSERT INTO "{table_name}" ({", ".join(col_names)}) VALUES ({placeholders})'
+
+                for row in data:
+                    values = [row.get(col) for col in col_names]
+                    self.conn.execute(insert_sql, values)
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Batch insert failed: {str(e)}")
+            return False
+
+    def execute(self, query):
+        try:
+            with self.conn:
+                cursor = self.conn.execute(query)
+                if query.strip().upper().startswith('SELECT'):
+                    return cursor.fetchall()
+                return cursor.rowcount
+        except sqlite3.Error as e:
+            logger.error(f"Query execution failed: {str(e)}")
+            raise
+
     def commit(self):
         try:
             self.conn.commit()

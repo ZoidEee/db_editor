@@ -30,6 +30,7 @@ class DatabaseEditorWindow(QMainWindow):
         self.setMinimumSize(1000, 700)
         self.setup_menu_bar()
         self.setup_main_window()
+
         self.setup_auto_save()
 
     def setup_menu_bar(self):
@@ -44,27 +45,30 @@ class DatabaseEditorWindow(QMainWindow):
 
         # Connection Status
         status_widget = QWidget()
+        status_layout = QHBoxLayout()
 
         database_connection_layout = QHBoxLayout()
-
-        status_layout = QHBoxLayout()
-        status_layout.addWidget(QLabel("Database:"))
+        database_connection_layout.addWidget(QLabel("Database:"))
 
         self.db_connected_label = QLabel("Not Connected")
         self.db_connected_label.setStyleSheet("font-weight: bold; color: red; font-size: 16px;")
+        database_connection_layout.addWidget(self.db_connected_label)
 
-        status_layout.addWidget(self.db_connected_label)
-        database_connection_layout.addLayout(status_layout)
+        database_connection_layout.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignLeft)
 
-        # status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        status_widget.setLayout(database_connection_layout)
-        status_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-
+        table_status_layout = QHBoxLayout()
+        table_status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignRight)
         self.table_combo = QComboBox()
         self.table_combo.setMinimumWidth(75)
         self.table_combo.setMaximumWidth(150)
-        database_connection_layout.addWidget(self.table_combo)
+
+        status_layout.addLayout(database_connection_layout)
+        table_status_layout.addWidget(QLabel("Table:"))
+        table_status_layout.addWidget(self.table_combo)
+        status_layout.addLayout(table_status_layout)
+        status_widget.setLayout(status_layout)
+        status_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+
 
         # Search Layout
         search_widget = QWidget()
@@ -143,6 +147,7 @@ class DatabaseEditorWindow(QMainWindow):
         self.clone_table_btn.clicked.connect(self.clone_table)
         '''
 
+
     def setup_auto_save(self):
         self.auto_save = AutoSave(self.db_controller)
 
@@ -158,7 +163,7 @@ class DatabaseEditorWindow(QMainWindow):
             self.show_setup_dialog()
 
     def show_setup_dialog(self):
-        dlg = NewDatabaseDialog()
+        dlg = NewDatabaseDialog(mode="both")
         if dlg.exec() == QDialog.DialogCode.Accepted:
             config = dlg.get_config()
             logger.debug(f"Database configuration: {config}")
@@ -201,3 +206,4 @@ class DatabaseEditorWindow(QMainWindow):
             # Log and display an error message if something goes wrong
             logger.error(f"Failed to load table {table_name}: {str(e)}")
             QMessageBox.critical(self, "Load Error", f"Failed to load table {table_name}: {str(e)}")
+

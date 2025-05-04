@@ -8,10 +8,11 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
 
 
 class NewDatabaseDialog(QDialog):
-    def __init__(self):
+    def __init__(self, mode="both"):  # mode: "new", "open", or "both"
         super().__init__()
         self.setWindowTitle("SQLite Database Setup")
         self.setMinimumSize(600, 400)
+        self.mode = mode.lower()
         self.setup_ui()
         self.is_opening_existing = False
 
@@ -28,32 +29,29 @@ class NewDatabaseDialog(QDialog):
         db_row.addWidget(self.browse_btn)
         layout.addLayout(db_row)
 
-        # Table name and actions row
-        table_action_row = QHBoxLayout()
-        table_action_row.addWidget(QLabel("Table Name:"))
+        # Table name and actions row (only for 'new' or 'both')
+        self.table_action_row = QHBoxLayout()
+        self.table_action_row.addWidget(QLabel("Table Name:"))
         self.table_name_input = QLineEdit()
-        table_action_row.addWidget(self.table_name_input)
+        self.table_action_row.addWidget(self.table_name_input)
 
         # Column buttons
         self.add_col_btn = QPushButton("+ Column")
         self.remove_col_btn = QPushButton("- Column")
-        table_action_row.addWidget(self.add_col_btn)
-        table_action_row.addWidget(self.remove_col_btn)
+        self.table_action_row.addWidget(self.add_col_btn)
+        self.table_action_row.addWidget(self.remove_col_btn)
 
         # Initial rows
-        table_action_row.addWidget(QLabel("Rows:"))
+        self.table_action_row.addWidget(QLabel("Rows:"))
         self.initial_rows = QSpinBox()
         self.initial_rows.setMaximum(1000)
         self.initial_rows.setFixedWidth(50)
-        table_action_row.addWidget(self.initial_rows)
-
-        layout.addLayout(table_action_row)
+        self.table_action_row.addWidget(self.initial_rows)
 
         # Column table
         self.column_table = QTableWidget(0, 2)
         self.column_table.setHorizontalHeaderLabels(["Column Name", "Data Type"])
         self.column_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(self.column_table)
 
         # Dialog buttons
         btn_layout = QHBoxLayout()
@@ -64,7 +62,21 @@ class NewDatabaseDialog(QDialog):
         btn_layout.addWidget(self.create_btn)
         btn_layout.addWidget(self.open_btn)
         btn_layout.addWidget(self.cancel_btn)
+
+        # Add widgets to layout depending on mode
+        if self.mode in ("new", "both"):
+            layout.addLayout(self.table_action_row)
+            layout.addWidget(self.column_table)
+        if self.mode in ("open", "both"):
+            # For open mode, do not show table/column setup
+            pass
         layout.addLayout(btn_layout)
+
+        # Show/hide buttons according to mode
+        self.create_btn.setVisible(self.mode in ("new", "both"))
+        self.open_btn.setVisible(self.mode in ("open", "both"))
+        #self.table_action_row.setVisible(self.mode in ("new", "both"))
+        self.column_table.setVisible(self.mode in ("new", "both"))
 
         # Connect signals
         self.add_col_btn.clicked.connect(self.add_column)
